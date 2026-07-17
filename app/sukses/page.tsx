@@ -26,20 +26,21 @@ export default function SuksesPage({
           alt="Megumi Beauty Studio"
           width={472}
           height={188}
-          className="mx-auto h-auto w-52 object-contain"
+          className="animate-fade-up mx-auto h-auto w-52 object-contain"
         />
-        <div className="mx-auto mt-3 mb-5 h-px w-16 bg-gradient-to-r from-transparent via-gold-400 to-transparent" />
+        <div className="animate-fade-up mx-auto mt-3 mb-5 h-px w-16 bg-gradient-to-r from-transparent via-gold-400 to-transparent [animation-delay:80ms]" />
 
-        <div className="mb-4 flex justify-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gold-50 text-2xl ring-1 ring-gold-200">✓</span>
+        <div className="relative mb-4 flex justify-center">
+          <span className="animate-ripple absolute h-14 w-14 rounded-full bg-gold-200" />
+          <span className="animate-pop-in relative flex h-14 w-14 items-center justify-center rounded-full bg-gold-50 text-2xl ring-1 ring-gold-200 [animation-delay:150ms]">✓</span>
         </div>
 
-        <h1 className="mb-2 font-serif text-3xl italic text-gold-800">Booking Terkirim!</h1>
-        <p className="mb-8 text-sm text-stone-500">
+        <h1 className="animate-fade-up mb-2 font-serif text-3xl italic text-gold-800 [animation-delay:250ms]">Booking Terkirim!</h1>
+        <p className="animate-fade-up mb-8 text-sm text-stone-500 [animation-delay:320ms]">
           Terima kasih{nama ? `, ${nama}` : ""}! Booking kamu sudah kami terima.
         </p>
 
-        <div className="rounded-2xl border border-gold-100 bg-white/90 p-6 shadow-xl shadow-gold-900/5 text-left mb-6">
+        <div className="animate-fade-up rounded-2xl border border-gold-100 bg-white/90 p-6 shadow-xl shadow-gold-900/5 text-left mb-6 [animation-delay:400ms]">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-gold-700">Ringkasan Booking</p>
 
           {nama && (
@@ -73,7 +74,7 @@ export default function SuksesPage({
           )}
         </div>
 
-        <div className="rounded-2xl bg-gold-50 p-5 text-left mb-8 ring-1 ring-gold-200">
+        <div className="animate-fade-up rounded-2xl bg-gold-50 p-5 text-left mb-8 ring-1 ring-gold-200 [animation-delay:480ms]">
           <p className="text-sm font-medium text-gold-800 mb-1">📱 Menunggu konfirmasi admin</p>
           <p className="text-xs text-stone-600">
             Booking kamu sedang kami proses. Konfirmasi akan dikirim via <strong>WhatsApp</strong> dalam waktu 1×24 jam.
@@ -83,7 +84,7 @@ export default function SuksesPage({
 
         <Link
           href="/"
-          className="inline-block rounded-lg bg-gradient-to-r from-gold-600 to-gold-500 px-6 py-3 text-sm font-semibold tracking-wide text-white shadow-md shadow-gold-900/10 transition hover:from-gold-700 hover:to-gold-600"
+          className="animate-fade-up inline-block rounded-lg bg-gradient-to-r from-gold-600 to-gold-500 px-6 py-3 text-sm font-semibold tracking-wide text-white shadow-md shadow-gold-900/10 transition hover:from-gold-700 hover:to-gold-600 [animation-delay:560ms]"
         >
           Buat Booking Baru
         </Link>
