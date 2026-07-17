@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { SESSION_OPTIONS } from "./constants";
 
 function getConfig() {
   const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -16,7 +17,7 @@ export async function createBookingCalendarEvent(params: {
   email: string;
   whatsapp: string;
   bookingDate: string; // YYYY-MM-DD
-  bookingTime: string; // HH:mm
+  bookingTime: string; // one of SESSION_OPTIONS[].value
   accessories?: string;
   accessoryDetails?: string;
   attire?: string;
@@ -28,12 +29,16 @@ export async function createBookingCalendarEvent(params: {
 
   const { fullName, email, whatsapp, bookingDate, bookingTime, accessories, accessoryDetails, attire } = params;
 
-  const start = new Date(`${bookingDate}T${bookingTime}:00+07:00`);
-  if (isNaN(start.getTime())) {
-    return { ok: false, skipped: true, reason: `Tanggal/jam tidak valid: "${bookingDate}" "${bookingTime}".` };
+  const session = SESSION_OPTIONS.find((s) => s.value === bookingTime);
+  if (!session) {
+    return { ok: false, skipped: true, reason: `Sesi booking tidak dikenali: "${bookingTime}".` };
   }
-  const end = new Date(start);
-  end.setHours(end.getHours() + 3);
+
+  const start = new Date(`${bookingDate}T${String(session.startHour).padStart(2, "0")}:00:00+07:00`);
+  if (isNaN(start.getTime())) {
+    return { ok: false, skipped: true, reason: `Tanggal tidak valid: "${bookingDate}".` };
+  }
+  const end = new Date(`${bookingDate}T${String(session.endHour).padStart(2, "0")}:00:00+07:00`);
 
   const auth = new google.auth.JWT({
     email: config.clientEmail,
@@ -46,6 +51,7 @@ export async function createBookingCalendarEvent(params: {
     `Nama: ${fullName}`,
     `WhatsApp: ${whatsapp}`,
     `Email: ${email}`,
+    `Sesi: ${bookingTime}`,
     accessories ? `Aksesoris: ${accessories}` : "",
     accessoryDetails ? `Detail: ${accessoryDetails}` : "",
     attire ? `Attire: ${attire}` : "",

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 function formatDate(iso: string) {
   if (!iso) return "";
@@ -10,32 +11,43 @@ function formatDate(iso: string) {
 export default function SuksesPage({
   searchParams,
 }: {
-  searchParams: { nama?: string; tanggal?: string; jam?: string };
+  searchParams: { nama?: string; tanggal?: string; sesi?: string };
 }) {
   const nama = searchParams.nama || "";
   const tanggal = searchParams.tanggal || "";
-  const jam = searchParams.jam || "";
+  const sesi = searchParams.sesi || "";
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4 py-12">
       <div className="mx-auto max-w-md w-full text-center">
 
-        <div className="mb-6 text-6xl">🎉</div>
+        <Image
+          src="/megumi-logo.png"
+          alt="Megumi Beauty Studio"
+          width={472}
+          height={188}
+          className="mx-auto h-auto w-52 object-contain"
+        />
+        <div className="mx-auto mt-3 mb-5 h-px w-16 bg-gradient-to-r from-transparent via-gold-400 to-transparent" />
 
-        <h1 className="mb-2 text-2xl font-bold text-pink-700">Booking Terkirim!</h1>
-        <p className="mb-8 text-sm text-gray-500">
+        <div className="mb-4 flex justify-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gold-50 text-2xl ring-1 ring-gold-200">✓</span>
+        </div>
+
+        <h1 className="mb-2 font-serif text-3xl italic text-gold-800">Booking Terkirim!</h1>
+        <p className="mb-8 text-sm text-stone-500">
           Terima kasih{nama ? `, ${nama}` : ""}! Booking kamu sudah kami terima.
         </p>
 
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-pink-100 text-left mb-8">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-pink-400">Ringkasan Booking</p>
+        <div className="rounded-2xl border border-gold-100 bg-white/90 p-6 shadow-xl shadow-gold-900/5 text-left mb-6">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-gold-700">Ringkasan Booking</p>
 
           {nama && (
             <div className="mb-3 flex items-start gap-3">
               <span className="text-lg">👤</span>
               <div>
-                <p className="text-xs text-gray-400">Nama</p>
-                <p className="text-sm font-medium text-gray-800">{nama}</p>
+                <p className="text-xs text-stone-400">Nama</p>
+                <p className="text-sm font-medium text-stone-800">{nama}</p>
               </div>
             </div>
           )}
@@ -44,26 +56,26 @@ export default function SuksesPage({
             <div className="mb-3 flex items-start gap-3">
               <span className="text-lg">📅</span>
               <div>
-                <p className="text-xs text-gray-400">Tanggal</p>
-                <p className="text-sm font-medium text-gray-800">{formatDate(tanggal)}</p>
+                <p className="text-xs text-stone-400">Tanggal</p>
+                <p className="text-sm font-medium text-stone-800">{formatDate(tanggal)}</p>
               </div>
             </div>
           )}
 
-          {jam && (
+          {sesi && (
             <div className="flex items-start gap-3">
               <span className="text-lg">🕐</span>
               <div>
-                <p className="text-xs text-gray-400">Jam</p>
-                <p className="text-sm font-medium text-gray-800">{jam} WIB</p>
+                <p className="text-xs text-stone-400">Sesi</p>
+                <p className="text-sm font-medium text-stone-800">{sesi}</p>
               </div>
             </div>
           )}
         </div>
 
-        <div className="rounded-2xl bg-pink-50 p-5 text-left mb-8 ring-1 ring-pink-200">
-          <p className="text-sm font-medium text-pink-700 mb-1">📧 Cek email kamu</p>
-          <p className="text-xs text-gray-600">
+        <div className="rounded-2xl bg-gold-50 p-5 text-left mb-8 ring-1 ring-gold-200">
+          <p className="text-sm font-medium text-gold-800 mb-1">📧 Cek email kamu</p>
+          <p className="text-xs text-stone-600">
             Undangan Google Calendar telah dikirim ke email yang kamu daftarkan.
             Booking akan dikonfirmasi via <strong>WhatsApp</strong> dalam waktu 1×24 jam.
           </p>
@@ -71,7 +83,7 @@ export default function SuksesPage({
 
         <Link
           href="/"
-          className="inline-block rounded-xl bg-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-pink-600"
+          className="inline-block rounded-lg bg-gradient-to-r from-gold-600 to-gold-500 px-6 py-3 text-sm font-semibold tracking-wide text-white shadow-md shadow-gold-900/10 transition hover:from-gold-700 hover:to-gold-600"
         >
           Buat Booking Baru
         </Link>

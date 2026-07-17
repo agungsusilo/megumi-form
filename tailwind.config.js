@@ -4,22 +4,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        pink: {
-          50: "#fdf2f8",
-          100: "#fce7f3",
-          200: "#fbcfe8",
-          300: "#f9a8d4",
-          400: "#f472b6",
-          500: "#ec4899",
-          600: "#db2777",
-        },
-        rose: {
-          50: "#fff1f2",
-          100: "#ffe4e6",
+        gold: {
+          50: "#faf6ee",
+          100: "#f3e8d3",
+          200: "#e6d3ac",
+          300: "#d6b87d",
+          400: "#c39a52",
+          500: "#a97c2f",
+          600: "#8c6428",
+          700: "#6f4e1f",
+          800: "#523a17",
+          900: "#38280f",
         },
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        serif: ["var(--font-serif)", "Georgia", "serif"],
       },
     },
   },
