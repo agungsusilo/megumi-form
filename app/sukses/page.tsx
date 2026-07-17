@@ -74,10 +74,10 @@ export default function SuksesPage({
         </div>
 
         <div className="rounded-2xl bg-gold-50 p-5 text-left mb-8 ring-1 ring-gold-200">
-          <p className="text-sm font-medium text-gold-800 mb-1">📧 Cek email kamu</p>
+          <p className="text-sm font-medium text-gold-800 mb-1">📱 Menunggu konfirmasi admin</p>
           <p className="text-xs text-stone-600">
-            Undangan Google Calendar telah dikirim ke email yang kamu daftarkan.
-            Booking akan dikonfirmasi via <strong>WhatsApp</strong> dalam waktu 1×24 jam.
+            Booking kamu sedang kami proses. Konfirmasi akan dikirim via <strong>WhatsApp</strong> dalam waktu 1×24 jam.
+            Setelah dikonfirmasi, undangan Google Calendar akan dikirim ke email yang kamu daftarkan.
           </p>
         </div>
 

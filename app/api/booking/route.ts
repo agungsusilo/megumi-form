@@ -12,6 +12,31 @@ function isoToDMY(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
+// Mirrors megumi-dashboard's uploadCompressedImage (lib/media-storage.ts): downscale to a
+// max side of 1800px and re-encode as WebP before it ever lands in the bucket. Falls back
+// to the original buffer if sharp is unavailable in the runtime, same as the dashboard does.
+async function compressImage(buffer: Buffer): Promise<{ buffer: Buffer; contentType: string; ext: string }> {
+  try {
+    const sharp = (await import("sharp")).default;
+    const metadata = await sharp(buffer).metadata();
+    const maxSide = 1800;
+    const compressed = await sharp(buffer)
+      .rotate()
+      .resize({
+        width: metadata.width && metadata.width >= (metadata.height || 0) ? maxSide : undefined,
+        height: metadata.height && metadata.height > (metadata.width || 0) ? maxSide : undefined,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 88 })
+      .toBuffer();
+    return { buffer: compressed, contentType: "image/webp", ext: "webp" };
+  } catch (err) {
+    console.warn("[booking/route] Sharp unavailable, uploading original image without compression:", err instanceof Error ? err.message : err);
+    return { buffer, contentType: "image/jpeg", ext: "jpg" };
+  }
+}
+
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
   const body: Record<string, string> = {};
@@ -20,8 +45,10 @@ export async function POST(req: NextRequest) {
   if (contentType.includes("multipart/form-data")) {
     const formData = await req.formData();
     for (const [key, value] of formData.entries()) {
-      if (key === "paymentProof" && value instanceof File) {
-        if (value.size > 0) proofFile = value;
+      // Avoid `instanceof File` — Node 18 doesn't expose File as a global (added in Node 20),
+      // and the File class Next.js's multipart parser uses may not match a locally imported one anyway.
+      if (key === "paymentProof" && typeof value !== "string") {
+        if (value.size > 0) proofFile = value as File;
       } else if (typeof value === "string") {
         body[key] = value;
       }
@@ -36,7 +63,8 @@ export async function POST(req: NextRequest) {
 
   const { fullName, email, whatsapp, bookingDate, bookingTime, accessories, accessoryDetails, attire, pendamping, fotografer } = body;
 
-  if (!fullName?.trim() || !email?.trim() || !whatsapp?.trim() || !bookingDate || !bookingTime || !pendamping?.trim()) {
+  if (!fullName?.trim() || !email?.trim() || !whatsapp?.trim() || !bookingDate || !bookingTime
+    || !accessories?.trim() || !attire?.trim() || !pendamping?.trim() || !fotografer?.trim()) {
     return NextResponse.json({ error: "Field wajib belum diisi." }, { status: 400 });
   }
 
@@ -56,13 +84,20 @@ export async function POST(req: NextRequest) {
 
   const supabase = getSupabaseAdmin();
 
-  const ext = proofFile.name.split(".").pop() || "jpg";
-  const path = `studio-payment-proofs/${bookingDate}/${Date.now()}-${randomUUID()}.${ext}`;
-  const buffer = Buffer.from(await proofFile.arrayBuffer());
-
-  const { error: uploadError } = await supabase.storage
-    .from(MEDIA_BUCKET)
-    .upload(path, buffer, { contentType: proofFile.type, upsert: false });
+  let uploadError: unknown = null;
+  let path = "";
+  try {
+    const originalBuffer = Buffer.from(await proofFile.arrayBuffer());
+    const { buffer, contentType, ext } = await compressImage(originalBuffer);
+    path = `studio-payment-proofs/${bookingDate}/${Date.now()}-${randomUUID()}.${ext}`;
+    const res = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(path, buffer, { contentType, upsert: false });
+    uploadError = res.error;
+  } catch (err) {
+    console.error("[booking/route] Upload bukti pembayaran exception:", err);
+    return NextResponse.json({ error: "Gagal mengunggah bukti pembayaran. Silakan coba lagi." }, { status: 500 });
+  }
 
   if (uploadError) {
     console.error("[booking/route] Upload bukti pembayaran gagal:", uploadError);

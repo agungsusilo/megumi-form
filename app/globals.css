@@ -27,11 +27,11 @@ body {
 }
 
 .form-label {
-  @apply mb-1.5 block text-sm font-medium text-stone-700;
+  @apply mb-1.5 block text-[13px] font-medium text-stone-700 sm:text-sm;
 }
 
-.form-label span {
-  @apply ml-1 text-gold-600;
+.required-mark {
+  @apply ml-1 text-red-500;
 }
 
 .form-section {

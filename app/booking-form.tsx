@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -27,8 +27,31 @@ const INITIAL: FormState = {
   attire: "", pendamping: "", fotografer: "",
 };
 
-function RadioOption({ name, label, checked, onChange, disabled }: {
-  name: string; label: string; checked: boolean; onChange: () => void; disabled?: boolean;
+const DRAFT_KEY = "megumi-booking-draft-v1";
+const SECTION_LABELS = ["Data Diri", "Jadwal", "Detail Sesi", "Pembayaran"];
+
+// Options are stored as "<Nama> - <Harga>" (matches the source Google Form's exact wording,
+// which is also the literal value saved to the database) — split only for display.
+function splitPrice(raw: string): { name: string; price: string } {
+  const idx = raw.lastIndexOf(" - ");
+  if (idx === -1) return { name: raw, price: "" };
+  return { name: raw.slice(0, idx).trim(), price: raw.slice(idx + 3).trim() };
+}
+
+function PriceBadge({ price }: { price: string }) {
+  const isFree = price.trim().toLowerCase() === "free";
+  return (
+    <span className={[
+      "ml-2 shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold",
+      isFree ? "bg-emerald-50 text-emerald-600" : "bg-gold-100 text-gold-700",
+    ].join(" ")}>
+      {price}
+    </span>
+  );
+}
+
+function RadioOption({ name, label, price, checked, onChange, disabled }: {
+  name: string; label: string; price?: string; checked: boolean; onChange: () => void; disabled?: boolean;
 }) {
   return (
     <label className={[
@@ -44,13 +67,14 @@ function RadioOption({ name, label, checked, onChange, disabled }: {
         disabled={disabled}
         className="h-4 w-4 shrink-0 border-gold-300 text-gold-600 focus:ring-gold-400"
       />
-      <span className="text-stone-700">{label}</span>
+      <span className="flex-1 text-stone-700">{label}</span>
+      {price && <PriceBadge price={price} />}
     </label>
   );
 }
 
-function CheckboxOption({ label, checked, onChange, disabled }: {
-  label: string; checked: boolean; onChange: () => void; disabled?: boolean;
+function CheckboxOption({ label, price, checked, onChange, disabled }: {
+  label: string; price?: string; checked: boolean; onChange: () => void; disabled?: boolean;
 }) {
   return (
     <label className={[
@@ -65,8 +89,36 @@ function CheckboxOption({ label, checked, onChange, disabled }: {
         disabled={disabled}
         className="h-4 w-4 shrink-0 rounded border-gold-300 text-gold-600 focus:ring-gold-400"
       />
-      <span className="text-stone-700">{label}</span>
+      <span className="flex-1 text-stone-700">{label}</span>
+      {price && <PriceBadge price={price} />}
     </label>
+  );
+}
+
+function YesNoToggle({ value, onChange, disabled }: {
+  value: string; onChange: (v: string) => void; disabled?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-1 rounded-lg border border-gold-100 bg-stone-50 p-1">
+      {YES_NO_OPTIONS.map((opt) => {
+        const checked = value === opt;
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onChange(opt)}
+            disabled={disabled}
+            className={[
+              "rounded-md py-2 text-sm font-semibold transition",
+              checked ? "bg-gold-600 text-white shadow-sm" : "text-stone-500 hover:bg-white hover:text-stone-700",
+              disabled ? "cursor-not-allowed opacity-60" : "",
+            ].join(" ")}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -81,6 +133,29 @@ export function BookingForm() {
   const [loadingBookedDates, setLoadingBookedDates] = useState(true);
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
   const [paymentProofPreview, setPaymentProofPreview] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [showProofLightbox, setShowProofLightbox] = useState(false);
+  const [activeSection, setActiveSection] = useState(1);
+  const [isDraftLoaded, setIsDraftLoaded] = useState(false);
+
+  const section1Ref = useRef<HTMLDivElement>(null);
+  const section2Ref = useRef<HTMLDivElement>(null);
+  const section3Ref = useRef<HTMLDivElement>(null);
+  const section4Ref = useRef<HTMLDivElement>(null);
+
+  const fullNameRef = useRef<HTMLDivElement>(null);
+  const emailRef = useRef<HTMLDivElement>(null);
+  const whatsappRef = useRef<HTMLDivElement>(null);
+  const bookingDateRef = useRef<HTMLDivElement>(null);
+  const bookingTimeRef = useRef<HTMLDivElement>(null);
+  const accessoriesRef = useRef<HTMLDivElement>(null);
+  const adatDetailRef = useRef<HTMLDivElement>(null);
+  const attireRef = useRef<HTMLDivElement>(null);
+  const pendampingRef = useRef<HTMLDivElement>(null);
+  const fotograferRef = useRef<HTMLDivElement>(null);
+  const paymentProofRef = useRef<HTMLDivElement>(null);
+  const termsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +181,70 @@ export function BookingForm() {
       if (paymentProofPreview) URL.revokeObjectURL(paymentProofPreview);
     };
   }, [paymentProofPreview]);
+
+  // Restore a saved draft (text fields only — the payment proof file can't be persisted).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        const hasContent =
+          (draft.form && Object.values(draft.form).some((v) => typeof v === "string" && v.trim())) ||
+          (Array.isArray(draft.selectedAccessories) && draft.selectedAccessories.length > 0) ||
+          (typeof draft.adatDetail === "string" && draft.adatDetail) ||
+          draft.agreedToTerms === true;
+        if (hasContent) {
+          if (draft.form) setForm((prev) => ({ ...prev, ...draft.form }));
+          if (Array.isArray(draft.selectedAccessories)) setSelectedAccessories(draft.selectedAccessories);
+          if (typeof draft.adatDetail === "string") setAdatDetail(draft.adatDetail);
+          if (typeof draft.agreedToTerms === "boolean") setAgreedToTerms(draft.agreedToTerms);
+          setDraftRestored(true);
+        }
+      }
+    } catch {}
+    setIsDraftLoaded(true);
+  }, []);
+
+  // Autosave — gated on isDraftLoaded so we never overwrite a not-yet-restored draft with initial/stale state.
+  // Skips writing entirely while the form is still empty, so a visit with no input never creates a "restorable" draft.
+  useEffect(() => {
+    if (!isDraftLoaded) return;
+    const hasContent =
+      Object.values(form).some((v) => v.trim()) ||
+      selectedAccessories.length > 0 ||
+      adatDetail !== "" ||
+      agreedToTerms;
+    try {
+      if (hasContent) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ form, selectedAccessories, adatDetail, agreedToTerms }));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch {}
+  }, [isDraftLoaded, form, selectedAccessories, adatDetail, agreedToTerms]);
+
+  // Sticky progress indicator — tracks which numbered section is currently in view.
+  useEffect(() => {
+    const sections = [
+      { ref: section1Ref, num: 1 },
+      { ref: section2Ref, num: 2 },
+      { ref: section3Ref, num: 3 },
+      { ref: section4Ref, num: 4 },
+    ];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const match = sections.find((s) => s.ref.current === entry.target);
+            if (match) setActiveSection(match.num);
+          }
+        });
+      },
+      { rootMargin: "-96px 0px -60% 0px", threshold: 0 }
+    );
+    sections.forEach((s) => s.ref.current && observer.observe(s.ref.current));
+    return () => observer.disconnect();
+  }, []);
 
   function set(field: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -158,20 +297,42 @@ export function BookingForm() {
     });
   }
 
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {}
+    setForm(INITIAL);
+    setSelectedAccessories([]);
+    setAdatDetail("");
+    setAgreedToTerms(false);
+    removeProof();
+    setDraftRestored(false);
+    setError("");
+  }
+
+  function fail(message: string, ref: React.RefObject<HTMLElement>) {
+    setError(message);
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!form.fullName.trim()) return setError("Nama lengkap wajib diisi.");
-    if (!form.email.trim()) return setError("Email wajib diisi.");
-    if (!form.whatsapp.trim()) return setError("No. WhatsApp wajib diisi.");
-    if (!form.bookingDate) return setError("Tanggal booking wajib dipilih.");
-    if (isClosedDate(form.bookingDate)) return setError("Studio libur pada hari Jumat. Silakan pilih tanggal lain.");
-    if (!form.bookingTime) return setError("Jam booking wajib dipilih.");
+    if (!form.fullName.trim()) return fail("Nama lengkap wajib diisi.", fullNameRef);
+    if (!form.email.trim()) return fail("Email wajib diisi.", emailRef);
+    if (!form.whatsapp.trim()) return fail("No. WhatsApp wajib diisi.", whatsappRef);
+    if (!form.bookingDate) return fail("Tanggal booking wajib dipilih.", bookingDateRef);
+    if (isClosedDate(form.bookingDate)) return fail("Studio libur pada hari Jumat. Silakan pilih tanggal lain.", bookingDateRef);
+    if (!form.bookingTime) return fail("Jam booking wajib dipilih.", bookingTimeRef);
+    if (selectedAccessories.length === 0) return fail("Silakan pilih minimal satu Add On Aksesoris.", accessoriesRef);
     if (selectedAccessories.includes(ADAT_ACCESSORY_OPTION) && !adatDetail) {
-      return setError("Silakan pilih detail aksesoris adat.");
+      return fail("Silakan pilih detail aksesoris adat.", adatDetailRef);
     }
-    if (!form.pendamping) return setError("Silakan pilih apakah membawa pendamping.");
-    if (!paymentProof) return setError("Bukti pembayaran wajib diunggah.");
+    if (!form.attire) return fail("Silakan pilih attire.", attireRef);
+    if (!form.pendamping) return fail("Silakan pilih apakah membawa pendamping.", pendampingRef);
+    if (!form.fotografer) return fail("Silakan pilih apakah ingin tambahan fotografer.", fotograferRef);
+    if (!paymentProof) return fail("Bukti pembayaran wajib diunggah.", paymentProofRef);
+    if (!agreedToTerms) return fail("Silakan setujui Ketentuan Reservasi dan Kebijakan Pembatalan terlebih dahulu.", termsRef);
 
     setLoading(true);
     setError("");
@@ -186,6 +347,10 @@ export function BookingForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal mengirim booking.");
 
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {}
+
       const params = new URLSearchParams({
         nama: form.fullName,
         tanggal: form.bookingDate,
@@ -198,6 +363,8 @@ export function BookingForm() {
       setLoading(false);
     }
   }
+
+  const showAdatDetail = selectedAccessories.includes(ADAT_ACCESSORY_OPTION);
 
   return (
     <main className="min-h-screen py-10 px-4">
@@ -217,16 +384,58 @@ export function BookingForm() {
           <h1 className="font-serif text-2xl italic text-gold-800">Booking Form - Megumi Beauty Studio</h1>
         </div>
 
+        {/* Sticky progress indicator */}
+        <div className="sticky top-2 z-20 mb-4 rounded-2xl border border-gold-100 bg-white/90 px-4 py-2.5 shadow-sm backdrop-blur-sm">
+          <div className="flex items-center">
+            {SECTION_LABELS.map((label, i) => {
+              const num = i + 1;
+              const isActive = activeSection === num;
+              const isDone = activeSection > num;
+              return (
+                <div key={num} className="flex flex-1 items-center last:flex-none">
+                  <div
+                    className={[
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold transition",
+                      isActive ? "bg-gold-600 text-white" : isDone ? "bg-gold-300 text-white" : "bg-stone-100 text-stone-400",
+                    ].join(" ")}
+                  >
+                    {num}
+                  </div>
+                  {num < SECTION_LABELS.length && (
+                    <div className={`mx-1.5 h-px flex-1 transition ${isDone ? "bg-gold-300" : "bg-stone-200"}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-center text-[11px] font-medium uppercase tracking-wide text-gold-700">
+            {SECTION_LABELS[activeSection - 1]}
+          </p>
+        </div>
+
+        {draftRestored && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-gold-200 bg-gold-50/60 px-4 py-2.5 text-xs text-stone-600">
+            <span>📝 Draft sebelumnya berhasil dipulihkan.</span>
+            <button
+              type="button"
+              onClick={clearDraft}
+              className="shrink-0 font-medium text-gold-700 underline underline-offset-2 hover:text-gold-800"
+            >
+              Mulai baru
+            </button>
+          </div>
+        )}
+
         {/* Card */}
         <form onSubmit={handleSubmit} className="rounded-2xl border border-gold-100 bg-white/90 p-6 shadow-xl shadow-gold-900/5 backdrop-blur-sm">
 
           {/* Section 1: Data Diri */}
-          <div className="form-section">
+          <div className="form-section" ref={section1Ref}>
             <p className="form-section-title"><span className="form-section-badge">1</span>Data Diri</p>
 
-            <div className="mb-4">
+            <div className="mb-4" ref={fullNameRef}>
               <label className="form-label">
-                Nama Lengkap <span>*</span>
+                Nama Lengkap <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">Nama yang akan digunakan untuk data booking kamu.</p>
               <input
@@ -240,9 +449,9 @@ export function BookingForm() {
               />
             </div>
 
-            <div className="mb-4">
+            <div className="mb-4" ref={emailRef}>
               <label className="form-label">
-                Email <span>*</span>
+                Email <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">Undangan kalender akan dikirim ke email ini.</p>
               <input
@@ -256,9 +465,9 @@ export function BookingForm() {
               />
             </div>
 
-            <div className="mb-0">
+            <div className="mb-0" ref={whatsappRef}>
               <label className="form-label">
-                No. WhatsApp <span>*</span>
+                No. WhatsApp <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">Nomor aktif untuk konfirmasi booking dari admin.</p>
               <input
@@ -274,13 +483,30 @@ export function BookingForm() {
           </div>
 
           {/* Section 2: Jadwal */}
-          <div className="form-section">
+          <div className="form-section" ref={section2Ref}>
             <p className="form-section-title"><span className="form-section-badge">2</span>Jadwal</p>
 
-            <div className="mb-4">
+            <div className="mb-4" ref={bookingDateRef}>
               <label className="form-label">
-                Tanggal Booking <span>*</span>
+                Tanggal Booking <span className="required-mark">*</span>
               </label>
+              <div className="mb-2 rounded-lg border border-gold-100 bg-gold-50/50 px-3 py-2.5 text-xs">
+                <div className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-stone-500">
+                  <span>Jam Operasional</span>
+                  <span className="text-right font-medium text-stone-700">09.00 – 21.00 WIB</span>
+                  <span>Durasi Sesi</span>
+                  <span className="text-right font-medium text-stone-700">4 jam</span>
+                </div>
+                <p className="mt-2 mb-1 font-semibold uppercase tracking-wide text-[10px] text-gold-600">Tarif Sewa Studio</p>
+                <div className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-stone-500">
+                  <span>Per sesi (4 jam)</span>
+                  <span className="text-right font-medium text-stone-700">Rp 65.000</span>
+                  <span>Full Day / 2 sesi (9 jam)</span>
+                  <span className="text-right font-medium text-stone-700">Rp 130.000</span>
+                  <span>Tambahan durasi (maks 2 jam)</span>
+                  <span className="text-right font-medium text-stone-700">Rp 20.000/jam</span>
+                </div>
+              </div>
               <p className="mb-2 text-xs text-stone-400">
                 Tanggal bertanda titik sudah ada booking, dan yang pudar berarti penuh/libur. Studio tutup setiap hari Jumat.
               </p>
@@ -293,59 +519,71 @@ export function BookingForm() {
               />
             </div>
 
-            <div className="mb-0">
+            <div className="mb-0" ref={bookingTimeRef}>
               <label className="form-label">
-                Sesi Booking <span>*</span>
+                Sesi Booking <span className="required-mark">*</span>
               </label>
-              <p className="mb-2 text-xs text-stone-400">Pilih sesi yang masih tersedia untuk tanggal yang dipilih.</p>
-              <select
-                className="form-input"
-                value={form.bookingTime}
-                onChange={set("bookingTime")}
-                disabled={loading || !form.bookingDate}
-              >
-                <option value="">{form.bookingDate ? "-- Pilih sesi --" : "Pilih tanggal terlebih dahulu"}</option>
+              <p className="mb-2 text-xs text-stone-400">
+                {form.bookingDate ? "Pilih sesi yang masih tersedia untuk tanggal yang dipilih." : "Pilih tanggal terlebih dahulu."}
+              </p>
+              <div className="space-y-2">
                 {SESSION_OPTIONS.map((opt) => {
                   const counts = bookedDates[form.bookingDate] || { pagi: 0, sore: 0, full: 0 };
                   const full = isSessionFull(opt.key, counts);
                   return (
-                    <option key={opt.key} value={opt.value} disabled={full}>
-                      {opt.label}{full ? " (penuh)" : ""}
-                    </option>
+                    <RadioOption
+                      key={opt.key}
+                      name="bookingTime"
+                      label={`${opt.label}${full ? " (penuh)" : ""}`}
+                      checked={form.bookingTime === opt.value}
+                      onChange={() => {
+                        setForm((prev) => ({ ...prev, bookingTime: opt.value }));
+                        setError("");
+                      }}
+                      disabled={loading || !form.bookingDate || full}
+                    />
                   );
                 })}
-              </select>
+              </div>
             </div>
           </div>
 
           {/* Section 3: Detail Sesi */}
-          <div className="form-section">
+          <div className="form-section" ref={section3Ref}>
             <p className="form-section-title"><span className="form-section-badge">3</span>Detail Sesi</p>
 
-            <div className="mb-4">
+            <div className="mb-4" ref={accessoriesRef}>
               <label className="form-label">
-                Add On Aksesoris <span className="normal-case font-normal tracking-normal text-stone-400">(opsional)</span>
+                Add On Aksesoris <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">
                 Stok aksesoris terbatas, ketersediaannya akan dikonfirmasi oleh admin setelah formulir ini dikirim ya kak. 🙏
               </p>
               <div className="space-y-2">
-                {ACCESSORY_OPTIONS.map((opt) => (
-                  <CheckboxOption
-                    key={opt}
-                    label={opt}
-                    checked={selectedAccessories.includes(opt)}
-                    onChange={() => toggleAccessory(opt)}
-                    disabled={loading}
-                  />
-                ))}
+                {ACCESSORY_OPTIONS.map((opt) => {
+                  const { name, price } = splitPrice(opt);
+                  return (
+                    <CheckboxOption
+                      key={opt}
+                      label={name}
+                      price={price}
+                      checked={selectedAccessories.includes(opt)}
+                      onChange={() => toggleAccessory(opt)}
+                      disabled={loading}
+                    />
+                  );
+                })}
               </div>
             </div>
 
-            {selectedAccessories.includes(ADAT_ACCESSORY_OPTION) && (
-              <div className="mb-4">
+            <div
+              className={`grid transition-all duration-300 ease-in-out ${
+                showAdatDetail ? "mb-4 grid-rows-[1fr] opacity-100" : "mb-0 grid-rows-[0fr] opacity-0"
+              }`}
+            >
+              <div className="overflow-hidden" ref={adatDetailRef}>
                 <label className="form-label">
-                  Detail Aksesoris Adat <span>*</span>
+                  Detail Aksesoris Adat <span className="required-mark">*</span>
                 </label>
                 <p className="mb-2 text-xs text-stone-400">
                   Silakan pilih detail aksesoris yang diinginkan. Admin akan mengonfirmasi ketersediaan stok setelah formulir ini dikirim ya kak. 🙏
@@ -361,91 +599,80 @@ export function BookingForm() {
                         setAdatDetail(opt);
                         setError("");
                       }}
-                      disabled={loading}
+                      disabled={loading || !showAdatDetail}
                     />
                   ))}
                 </div>
               </div>
-            )}
+            </div>
 
-            <div className="mb-4">
+            <div className="mb-4" ref={attireRef}>
               <label className="form-label">
-                Pilihan Attire <span className="normal-case font-normal tracking-normal text-stone-400">(opsional)</span>
+                Pilihan Attire <span className="required-mark">*</span>
               </label>
-              <p className="mb-2 text-xs text-stone-400">
-                Ukuran attire yang tersedia: S–L. Mohon memilih model yang sesuai. Jika ukuran di luar S–L, silakan menggunakan baju pribadi atau konsultasikan terlebih dahulu dengan kami.
-              </p>
+              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                <span className="rounded-full bg-gold-50 px-2 py-0.5 font-medium text-gold-700 ring-1 ring-gold-200">Ukuran S–L</span>
+                <span className="text-stone-400">Di luar rentang ini, gunakan busana pribadi atau hubungi kami dahulu.</span>
+              </div>
               <div className="space-y-2">
-                {ATTIRE_OPTIONS.map((opt) => (
-                  <RadioOption
-                    key={opt}
-                    name="attire"
-                    label={opt}
-                    checked={form.attire === opt}
-                    onChange={() => {
-                      setForm((prev) => ({ ...prev, attire: opt }));
-                      setError("");
-                    }}
-                    disabled={loading}
-                  />
-                ))}
+                {ATTIRE_OPTIONS.map((opt) => {
+                  const { name, price } = splitPrice(opt);
+                  return (
+                    <RadioOption
+                      key={opt}
+                      name="attire"
+                      label={name}
+                      price={price}
+                      checked={form.attire === opt}
+                      onChange={() => {
+                        setForm((prev) => ({ ...prev, attire: opt }));
+                        setError("");
+                      }}
+                      disabled={loading}
+                    />
+                  );
+                })}
               </div>
             </div>
 
-            <div className="mb-4">
+            <div className="mb-4" ref={pendampingRef}>
               <label className="form-label">
-                Apakah Membawa Pendamping? <span>*</span>
+                Apakah Membawa Pendamping? <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">
                 Agar sesi rias lebih nyaman dan kondusif, kami menyarankan untuk tidak membawa anak kecil ke studio ya kak. 🙏
               </p>
-              <div className="flex gap-2">
-                {YES_NO_OPTIONS.map((opt) => (
-                  <div key={opt} className="flex-1">
-                    <RadioOption
-                      name="pendamping"
-                      label={opt}
-                      checked={form.pendamping === opt}
-                      onChange={() => {
-                        setForm((prev) => ({ ...prev, pendamping: opt }));
-                        setError("");
-                      }}
-                      disabled={loading}
-                    />
-                  </div>
-                ))}
-              </div>
+              <YesNoToggle
+                value={form.pendamping}
+                onChange={(v) => {
+                  setForm((prev) => ({ ...prev, pendamping: v }));
+                  setError("");
+                }}
+                disabled={loading}
+              />
             </div>
 
-            <div className="mb-0">
+            <div className="mb-0" ref={fotograferRef}>
               <label className="form-label">
-                Apakah Ingin Tambahan Fotografer? <span className="normal-case font-normal tracking-normal text-stone-400">(opsional)</span>
+                Apakah Ingin Tambahan Fotografer? <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">
                 Biaya tambahan untuk Fotografer - Rp 25.000 / 25 foto. Fotografer hanya tersedia di hari Sabtu dan Minggu, sesuai jadwal dari fotografer tersebut. Pastikan konfirmasi ke Admin untuk jadwal Fotografer.
               </p>
-              <div className="flex gap-2">
-                {YES_NO_OPTIONS.map((opt) => (
-                  <div key={opt} className="flex-1">
-                    <RadioOption
-                      name="fotografer"
-                      label={opt}
-                      checked={form.fotografer === opt}
-                      onChange={() => {
-                        setForm((prev) => ({ ...prev, fotografer: opt }));
-                        setError("");
-                      }}
-                      disabled={loading}
-                    />
-                  </div>
-                ))}
-              </div>
+              <YesNoToggle
+                value={form.fotografer}
+                onChange={(v) => {
+                  setForm((prev) => ({ ...prev, fotografer: v }));
+                  setError("");
+                }}
+                disabled={loading}
+              />
             </div>
           </div>
 
           {/* Section 4: Pembayaran */}
-          <div className="form-section">
-            <p className="form-section-title"><span className="form-section-badge">4</span>Pembayaran <span>*</span></p>
+          <div className="form-section" ref={section4Ref}>
+            <p className="form-section-title"><span className="form-section-badge">4</span>Pembayaran <span className="required-mark">*</span></p>
 
             <p className="mb-3 text-xs text-stone-500">
               Untuk mengamankan jadwal booking, mohon melakukan <strong className="font-semibold text-stone-700">DP sebesar Rp 35.000</strong> ke melalui QRIS di bawah atau rekening berikut:
@@ -457,7 +684,7 @@ export function BookingForm() {
                 alt="QRIS Megumi Beauty Studio"
                 width={908}
                 height={1280}
-                className="mx-auto w-48 rounded-lg shadow-md ring-1 ring-gold-200"
+                className="mx-auto h-auto w-full max-w-xs rounded-lg shadow-md ring-1 ring-gold-200"
               />
               <p className="mt-3 text-xs font-medium text-gold-700">Megumi Beauty Studio</p>
             </div>
@@ -472,9 +699,9 @@ export function BookingForm() {
               </p>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-4" ref={paymentProofRef}>
               <label className="form-label">
-                Bukti Pembayaran <span>*</span>
+                Bukti Pembayaran <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">
                 Setelah melakukan pembayaran, silakan unggah foto atau screenshot bukti transfer pada kolom di bawah ini ya kak. Terima kasih 🙏
@@ -482,9 +709,17 @@ export function BookingForm() {
 
               <input
                 type="file"
-                id="payment-proof-input"
+                id="payment-proof-camera"
                 accept="image/jpeg,image/png,image/webp"
                 capture="environment"
+                onChange={handleProofChange}
+                disabled={loading}
+                className="hidden"
+              />
+              <input
+                type="file"
+                id="payment-proof-gallery"
+                accept="image/jpeg,image/png,image/webp"
                 onChange={handleProofChange}
                 disabled={loading}
                 className="hidden"
@@ -496,12 +731,21 @@ export function BookingForm() {
                   <img
                     src={paymentProofPreview}
                     alt="Preview bukti pembayaran"
-                    className="h-16 w-16 rounded-lg object-cover ring-1 ring-gold-100"
+                    onClick={() => setShowProofLightbox(true)}
+                    className="h-16 w-16 cursor-zoom-in rounded-lg object-cover ring-1 ring-gold-100"
                   />
                   <div className="min-w-0 flex-1 text-left">
                     <p className="truncate text-xs font-medium text-stone-700">{paymentProof?.name}</p>
                     <p className="text-[11px] text-stone-400">
                       {paymentProof ? `${(paymentProof.size / 1024 / 1024).toFixed(1)} MB` : ""}
+                      {" · "}
+                      <button
+                        type="button"
+                        onClick={() => setShowProofLightbox(true)}
+                        className="underline underline-offset-2 hover:text-gold-700"
+                      >
+                        Lihat
+                      </button>
                     </p>
                   </div>
                   <button
@@ -514,16 +758,57 @@ export function BookingForm() {
                   </button>
                 </div>
               ) : (
-                <label
-                  htmlFor="payment-proof-input"
-                  className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gold-200 bg-white py-5 text-center transition hover:border-gold-400 hover:bg-gold-50/40"
-                >
-                  <span className="text-2xl">📷</span>
-                  <span className="text-xs font-medium text-gold-700">Ambil Foto / Upload Bukti</span>
-                  <span className="text-[11px] text-stone-400">JPG, PNG, atau WEBP, maks. 5MB</span>
-                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label
+                    htmlFor="payment-proof-camera"
+                    className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gold-200 bg-white py-5 text-center transition hover:border-gold-400 hover:bg-gold-50/40"
+                  >
+                    <span className="text-2xl">📷</span>
+                    <span className="text-xs font-medium text-gold-700">Ambil Foto</span>
+                  </label>
+                  <label
+                    htmlFor="payment-proof-gallery"
+                    className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gold-200 bg-white py-5 text-center transition hover:border-gold-400 hover:bg-gold-50/40"
+                  >
+                    <span className="text-2xl">🖼️</span>
+                    <span className="text-xs font-medium text-gold-700">Pilih dari Galeri</span>
+                  </label>
+                  <p className="col-span-2 text-center text-[11px] text-stone-400">JPG, PNG, atau WEBP, maks. 5MB</p>
+                </div>
               )}
             </div>
+          </div>
+
+          {/* Konfirmasi Akhir */}
+          <div className="mb-4 rounded-xl border border-gold-100 bg-white p-4" ref={termsRef}>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold-700">
+              Konfirmasi Akhir <span className="required-mark">*</span>
+            </p>
+            <p className="mb-3 text-sm text-stone-600">
+              Sebelum melanjutkan, mohon baca{" "}
+              <a
+                href="https://drive.google.com/file/d/1LPBRBp5TovS_6qo4cCuYVdVUvAbCFuuZ/view?usp=sharing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-gold-700 underline underline-offset-2 hover:text-gold-800"
+              >
+                Ketentuan Reservasi dan Kebijakan Pembatalan
+              </a>{" "}
+              kami.
+            </p>
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-gold-100 bg-gold-50/40 px-3 py-2.5 text-sm text-stone-700">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => {
+                  setAgreedToTerms(e.target.checked);
+                  setError("");
+                }}
+                disabled={loading}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-gold-300 text-gold-600 focus:ring-gold-400"
+              />
+              <span>Saya telah membaca dan menyetujui Ketentuan Reservasi serta Kebijakan Pembatalan di atas.</span>
+            </label>
           </div>
 
           {/* Error */}
@@ -543,6 +828,30 @@ export function BookingForm() {
           Booking akan dikonfirmasi via WhatsApp. Silakan tunggu konfirmasi dari kami.
         </p>
       </div>
+
+      {/* Lightbox: perbesar bukti pembayaran */}
+      {showProofLightbox && paymentProofPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowProofLightbox(false)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={paymentProofPreview}
+            alt="Bukti pembayaran (perbesar)"
+            className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setShowProofLightbox(false)}
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-lg text-stone-700 shadow-md"
+            aria-label="Tutup"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </main>
   );
 }
