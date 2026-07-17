@@ -29,6 +29,50 @@ const INITIAL: FormState = {
 
 const DRAFT_KEY = "megumi-booking-draft-v1";
 const SECTION_LABELS = ["Data Diri", "Jadwal", "Detail Sesi", "Pembayaran"];
+const MAX_PROOF_UPLOAD_SIZE = 20 * 1024 * 1024; // sanity cap before compression, not the final upload size
+const TARGET_PROOF_SIZE = 1 * 1024 * 1024; // compress down to under ~1MB
+
+async function encodeAtSize(bitmap: ImageBitmap, side: number, quality: number): Promise<Blob | null> {
+  const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+}
+
+// Downscale + re-encode in the browser before upload — Vercel's serverless functions reject
+// request bodies over ~4.5MB (returns a non-JSON error page), so a phone photo needs to be
+// shrunk client-side; compressing only after it reaches the server (in route.ts) is too late.
+// Iterates quality, then dimensions, until the result fits TARGET_PROOF_SIZE.
+async function compressImageFile(file: File, maxSide = 1800): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    let best: Blob | null = null;
+    let side = maxSide;
+
+    outer:
+    for (let pass = 0; pass < 6; pass++) {
+      for (const quality of [0.85, 0.7, 0.55, 0.4, 0.25]) {
+        const blob = await encodeAtSize(bitmap, side, quality);
+        if (!blob) continue;
+        if (!best || blob.size < best.size) best = blob;
+        if (blob.size <= TARGET_PROOF_SIZE) break outer;
+      }
+      side = Math.round(side * 0.75);
+    }
+
+    bitmap.close();
+    if (!best || best.size >= file.size) return file;
+    return new File([best], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file; // unsupported format/browser quirk — fall back to the original file
+  }
+}
 
 // Options are stored as "<Nama> - <Harga>" (matches the source Google Form's exact wording,
 // which is also the literal value saved to the database) — split only for display.
@@ -133,6 +177,7 @@ export function BookingForm() {
   const [loadingBookedDates, setLoadingBookedDates] = useState(true);
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
   const [paymentProofPreview, setPaymentProofPreview] = useState("");
+  const [compressingProof, setCompressingProof] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [showProofLightbox, setShowProofLightbox] = useState(false);
@@ -267,7 +312,7 @@ export function BookingForm() {
     setError("");
   }
 
-  function handleProofChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleProofChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -276,16 +321,20 @@ export function BookingForm() {
       setError("Format bukti pembayaran harus JPG, PNG, atau WEBP.");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Ukuran bukti pembayaran maksimal 5MB.");
+    if (file.size > MAX_PROOF_UPLOAD_SIZE) {
+      setError("Ukuran file terlalu besar. Silakan gunakan foto dengan ukuran lebih kecil.");
       return;
     }
 
     setError("");
-    setPaymentProof(file);
+    setCompressingProof(true);
+    const compressed = await compressImageFile(file);
+    setCompressingProof(false);
+
+    setPaymentProof(compressed);
     setPaymentProofPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
+      return URL.createObjectURL(compressed);
     });
   }
 
@@ -344,7 +393,19 @@ export function BookingForm() {
       fd.append("accessoryDetails", selectedAccessories.includes(ADAT_ACCESSORY_OPTION) ? adatDetail : "");
       fd.append("paymentProof", paymentProof);
       const res = await fetch("/api/booking", { method: "POST", body: fd });
-      const data = await res.json();
+
+      let data: { error?: string; id?: number };
+      try {
+        data = await res.json();
+      } catch {
+        // Non-JSON response — usually an infra-level rejection (e.g. request body too
+        // large) that never reached our route handler at all.
+        throw new Error(
+          res.status === 413
+            ? "Ukuran file terlalu besar untuk diunggah. Silakan gunakan foto dengan ukuran lebih kecil."
+            : "Terjadi kesalahan pada server. Silakan coba lagi."
+        );
+      }
       if (!res.ok) throw new Error(data.error || "Gagal mengirim booking.");
 
       try {
@@ -713,7 +774,7 @@ export function BookingForm() {
                 accept="image/jpeg,image/png,image/webp"
                 capture="environment"
                 onChange={handleProofChange}
-                disabled={loading}
+                disabled={loading || compressingProof}
                 className="hidden"
               />
               <input
@@ -721,11 +782,16 @@ export function BookingForm() {
                 id="payment-proof-gallery"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={handleProofChange}
-                disabled={loading}
+                disabled={loading || compressingProof}
                 className="hidden"
               />
 
-              {paymentProofPreview ? (
+              {compressingProof ? (
+                <div className="flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gold-200 bg-white py-5 text-center">
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-gold-300 border-t-gold-600" />
+                  <span className="mt-1 text-xs font-medium text-gold-700">Mengompres foto...</span>
+                </div>
+              ) : paymentProofPreview ? (
                 <div className="flex items-center gap-3 rounded-xl border border-gold-200 bg-white p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -773,7 +839,7 @@ export function BookingForm() {
                     <span className="text-2xl">🖼️</span>
                     <span className="text-xs font-medium text-gold-700">Pilih dari Galeri</span>
                   </label>
-                  <p className="col-span-2 text-center text-[11px] text-stone-400">JPG, PNG, atau WEBP, maks. 5MB</p>
+                  <p className="col-span-2 text-center text-[11px] text-stone-400">JPG, PNG, atau WEBP — foto akan otomatis dikompres</p>
                 </div>
               )}
             </div>
@@ -819,8 +885,8 @@ export function BookingForm() {
           )}
 
           {/* Submit */}
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? "Mengirim..." : "Kirim Booking"}
+          <button type="submit" className="btn-primary" disabled={loading || compressingProof}>
+            {loading ? "Mengirim..." : compressingProof ? "Memproses foto..." : "Kirim Booking"}
           </button>
         </form>
 
