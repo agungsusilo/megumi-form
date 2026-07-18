@@ -30,9 +30,20 @@ export default function SuksesPage({
         />
         <div className="animate-fade-up mx-auto mt-3 mb-5 h-px w-16 bg-gradient-to-r from-transparent via-gold-400 to-transparent [animation-delay:80ms]" />
 
-        <div className="relative mb-4 flex justify-center">
-          <span className="animate-ripple absolute h-14 w-14 rounded-full bg-gold-200" />
-          <span className="animate-pop-in relative flex h-14 w-14 items-center justify-center rounded-full bg-gold-50 text-2xl ring-1 ring-gold-200 [animation-delay:150ms]">✓</span>
+        <div className="mb-4 flex justify-center">
+          {/* Adapted from https://github.com/rharkor/check-mark-animation */}
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 214 214" className="check-circle h-20 w-20">
+            <g fill="none" stroke="currentColor" strokeWidth={2}>
+              <circle className="semi-transparent" fill="currentColor" opacity={0.15} cx={107} cy={107} r={72} />
+              <circle className="colored" fill="currentColor" cx={107} cy={107} r={72} opacity={0.8} />
+              <polyline
+                stroke="#fff"
+                strokeWidth={10}
+                points="73.5,107.8 93.7,127.9 142.2,79.4"
+                style={{ strokeDasharray: "50%, 50%", strokeDashoffset: "100%" }}
+              />
+            </g>
+          </svg>
         </div>
 
         <h1 className="animate-fade-up mb-2 font-serif text-3xl italic text-gold-800 [animation-delay:250ms]">Booking Terkirim!</h1>
