@@ -650,19 +650,23 @@ export function BookingForm() {
                   Silakan pilih detail aksesoris yang diinginkan. Admin akan mengonfirmasi ketersediaan stok setelah formulir ini dikirim ya kak. 🙏
                 </p>
                 <div className="space-y-2">
-                  {ADAT_DETAIL_OPTIONS.map((opt) => (
-                    <RadioOption
-                      key={opt}
-                      name="adatDetail"
-                      label={opt}
-                      checked={adatDetail === opt}
-                      onChange={() => {
-                        setAdatDetail(opt);
-                        setError("");
-                      }}
-                      disabled={loading || !showAdatDetail}
-                    />
-                  ))}
+                  {ADAT_DETAIL_OPTIONS.map((opt) => {
+                    const { name, price: color } = splitPrice(opt);
+                    return (
+                      <RadioOption
+                        key={opt}
+                        name="adatDetail"
+                        label={name}
+                        price={color}
+                        checked={adatDetail === opt}
+                        onChange={() => {
+                          setAdatDetail(opt);
+                          setError("");
+                        }}
+                        disabled={loading || !showAdatDetail}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>

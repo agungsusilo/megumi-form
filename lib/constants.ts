@@ -52,7 +52,7 @@ export const ACCESSORY_OPTIONS = [
 ] as const;
 
 export const ADAT_DETAIL_OPTIONS = [
-  "Adat Batak - Sortali",
+  "Adat Batak (Sortali) - Merah",
   "Adat Betawi - Gold",
   "Adat Betawi - Silver",
   "Adat Sunda (Siger) - Rose Gold",
