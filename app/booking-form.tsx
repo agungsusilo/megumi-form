@@ -94,8 +94,29 @@ function PriceBadge({ price }: { price: string }) {
   );
 }
 
-function RadioOption({ name, label, price, checked, onChange, disabled }: {
-  name: string; label: string; price?: string; checked: boolean; onChange: () => void; disabled?: boolean;
+// Maps the color names used in ADAT_DETAIL_OPTIONS to a badge that reads as that color.
+function getColorBadgeClasses(color: string): string {
+  const key = color.trim().toLowerCase();
+  if (key.includes("rose gold")) return "bg-rose-100 text-rose-700";
+  if (key.includes("merah")) return "bg-red-100 text-red-700";
+  if (key.includes("silver")) return "bg-slate-200 text-slate-700";
+  if (key.includes("gold")) return "bg-gold-100 text-gold-700";
+  return "bg-gold-100 text-gold-700";
+}
+
+function ColorBadge({ color }: { color: string }) {
+  return (
+    <span className={[
+      "ml-2 shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold",
+      getColorBadgeClasses(color),
+    ].join(" ")}>
+      {color}
+    </span>
+  );
+}
+
+function RadioOption({ name, label, price, color, checked, onChange, disabled }: {
+  name: string; label: string; price?: string; color?: string; checked: boolean; onChange: () => void; disabled?: boolean;
 }) {
   return (
     <label className={[
@@ -112,7 +133,7 @@ function RadioOption({ name, label, price, checked, onChange, disabled }: {
         className="h-4 w-4 shrink-0 border-gold-300 text-gold-600 focus:ring-gold-400"
       />
       <span className="flex-1 text-stone-700">{label}</span>
-      {price && <PriceBadge price={price} />}
+      {color ? <ColorBadge color={color} /> : price && <PriceBadge price={price} />}
     </label>
   );
 }
@@ -657,7 +678,7 @@ export function BookingForm() {
                         key={opt}
                         name="adatDetail"
                         label={name}
-                        price={color}
+                        color={color}
                         checked={adatDetail === opt}
                         onChange={() => {
                           setAdatDetail(opt);
