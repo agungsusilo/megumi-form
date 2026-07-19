@@ -104,12 +104,23 @@ function getColorBadgeClasses(color: string): string {
   return "bg-gold-100 text-gold-700";
 }
 
+// Solid dot color, distinct from the (soft) badge background so it stays visible on it.
+function getColorDotClasses(color: string): string {
+  const key = color.trim().toLowerCase();
+  if (key.includes("rose gold")) return "bg-rose-400";
+  if (key.includes("merah")) return "bg-red-500";
+  if (key.includes("silver")) return "bg-slate-400";
+  if (key.includes("gold")) return "bg-gold-400";
+  return "bg-gold-400";
+}
+
 function ColorBadge({ color }: { color: string }) {
   return (
     <span className={[
-      "ml-2 shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold",
+      "ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
       getColorBadgeClasses(color),
     ].join(" ")}>
+      <span className={["h-2 w-2 shrink-0 rounded-full", getColorDotClasses(color)].join(" ")} />
       {color}
     </span>
   );
