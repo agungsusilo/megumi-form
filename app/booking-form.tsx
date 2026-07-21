@@ -772,7 +772,7 @@ export function BookingForm() {
             <p className="form-section-title"><span className="form-section-badge">4</span>Pembayaran <span className="required-mark">*</span></p>
 
             <p className="mb-3 text-xs text-stone-500">
-              Untuk mengamankan jadwal booking, mohon melakukan <strong className="font-semibold text-stone-700">DP sebesar Rp 35.000</strong> ke melalui QRIS di bawah atau rekening berikut:
+              Untuk mengamankan jadwal booking, mohon melakukan <strong className="font-semibold text-stone-700">DP sebesar Rp 35.000</strong> melalui QRIS di bawah atau ke rekening berikut:
             </p>
 
             <div className="mb-4 rounded-xl border border-gold-100 bg-gold-50/50 p-4 text-center">
