@@ -32,6 +32,19 @@ const SECTION_LABELS = ["Data Diri", "Jadwal", "Detail Sesi", "Pembayaran"];
 const MAX_PROOF_UPLOAD_SIZE = 20 * 1024 * 1024; // sanity cap before compression, not the final upload size
 const TARGET_PROOF_SIZE = 1 * 1024 * 1024; // compress down to under ~1MB
 
+// Basic format guard — an invalid email means the promised calendar invite silently never arrives.
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+// Accepts 08.., 8.., 62.., +62.. (with spaces/dashes) and returns a normalized local "08..." number,
+// or null if it doesn't look like an Indonesian mobile number. Keeps storage consistent for the admin.
+function normalizeWhatsapp(raw: string): string | null {
+  const digits = raw.replace(/[\s\-().]/g, "");
+  const m = digits.match(/^(?:\+?62|0)?(8\d{7,12})$/);
+  return m ? "0" + m[1] : null;
+}
+
 async function encodeAtSize(bitmap: ImageBitmap, side: number, quality: number): Promise<Blob | null> {
   const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
   const w = Math.max(1, Math.round(bitmap.width * scale));
@@ -205,6 +218,7 @@ export function BookingForm() {
   const [adatDetail, setAdatDetail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorField, setErrorField] = useState("");
   const [bookedDates, setBookedDates] = useState<Record<string, SessionCounts>>({});
   const [loadingBookedDates, setLoadingBookedDates] = useState(true);
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
@@ -327,8 +341,13 @@ export function BookingForm() {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
       setError("");
+      setErrorField((cur) => (cur === field ? "" : cur));
     };
   }
+
+  // Red-highlight the input that failed validation, on top of the base .form-input styles.
+  const inputClass = (field: string) =>
+    `form-input${errorField === field ? " border-red-400 ring-4 ring-red-100 focus:border-red-400 focus:ring-red-100" : ""}`;
 
   function selectDate(date: string) {
     setForm((prev) => ({ ...prev, bookingDate: date, bookingTime: "" }));
@@ -389,19 +408,24 @@ export function BookingForm() {
     removeProof();
     setDraftRestored(false);
     setError("");
+    setErrorField("");
   }
 
-  function fail(message: string, ref: React.RefObject<HTMLElement>) {
+  function fail(message: string, ref: React.RefObject<HTMLElement>, field = "") {
     setError(message);
+    setErrorField(field);
     ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!form.fullName.trim()) return fail("Nama lengkap wajib diisi.", fullNameRef);
-    if (!form.email.trim()) return fail("Email wajib diisi.", emailRef);
-    if (!form.whatsapp.trim()) return fail("No. WhatsApp wajib diisi.", whatsappRef);
+    if (!form.fullName.trim()) return fail("Nama lengkap wajib diisi.", fullNameRef, "fullName");
+    if (!form.email.trim()) return fail("Email wajib diisi.", emailRef, "email");
+    if (!isValidEmail(form.email)) return fail("Format email belum benar. Contoh: nama@email.com", emailRef, "email");
+    if (!form.whatsapp.trim()) return fail("No. WhatsApp wajib diisi.", whatsappRef, "whatsapp");
+    const normalizedWhatsapp = normalizeWhatsapp(form.whatsapp);
+    if (!normalizedWhatsapp) return fail("Nomor WhatsApp belum valid. Gunakan format 08xxxxxxxxxx.", whatsappRef, "whatsapp");
     if (!form.bookingDate) return fail("Tanggal booking wajib dipilih.", bookingDateRef);
     if (isClosedDate(form.bookingDate)) return fail("Studio libur pada hari Jumat. Silakan pilih tanggal lain.", bookingDateRef);
     if (!form.bookingTime) return fail("Jam booking wajib dipilih.", bookingTimeRef);
@@ -421,6 +445,7 @@ export function BookingForm() {
     try {
       const fd = new FormData();
       for (const [key, value] of Object.entries(form)) fd.append(key, value);
+      fd.set("whatsapp", normalizedWhatsapp); // store the normalized "08..." form, not the raw input
       fd.append("accessories", selectedAccessories.join(", "));
       fd.append("accessoryDetails", selectedAccessories.includes(ADAT_ACCESSORY_OPTION) ? adatDetail : "");
       fd.append("paymentProof", paymentProof);
@@ -520,7 +545,7 @@ export function BookingForm() {
         )}
 
         {/* Card */}
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-gold-100 bg-white/90 p-6 shadow-xl shadow-gold-900/5 backdrop-blur-sm">
+        <form onSubmit={handleSubmit} noValidate className="rounded-2xl border border-gold-100 bg-white/90 p-6 shadow-xl shadow-gold-900/5 backdrop-blur-sm">
 
           {/* Section 1: Data Diri */}
           <div className="form-section" ref={section1Ref}>
@@ -533,12 +558,13 @@ export function BookingForm() {
               <p className="mb-2 text-xs text-stone-400">Nama yang akan digunakan untuk data booking kamu.</p>
               <input
                 type="text"
-                className="form-input"
+                className={inputClass("fullName")}
                 placeholder="Contoh: Putri Melati"
                 value={form.fullName}
                 onChange={set("fullName")}
                 disabled={loading}
                 autoComplete="name"
+                aria-invalid={errorField === "fullName"}
               />
             </div>
 
@@ -549,12 +575,14 @@ export function BookingForm() {
               <p className="mb-2 text-xs text-stone-400">Undangan kalender akan dikirim ke email ini.</p>
               <input
                 type="email"
-                className="form-input"
+                inputMode="email"
+                className={inputClass("email")}
                 placeholder="email@contoh.com"
                 value={form.email}
                 onChange={set("email")}
                 disabled={loading}
                 autoComplete="email"
+                aria-invalid={errorField === "email"}
               />
             </div>
 
@@ -565,12 +593,14 @@ export function BookingForm() {
               <p className="mb-2 text-xs text-stone-400">Nomor aktif untuk konfirmasi booking dari admin.</p>
               <input
                 type="tel"
-                className="form-input"
+                inputMode="tel"
+                className={inputClass("whatsapp")}
                 placeholder="08xxxxxxxxxx"
                 value={form.whatsapp}
                 onChange={set("whatsapp")}
                 disabled={loading}
                 autoComplete="tel"
+                aria-invalid={errorField === "whatsapp"}
               />
             </div>
           </div>
@@ -915,7 +945,11 @@ export function BookingForm() {
 
           {/* Error */}
           {error && (
-            <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 ring-1 ring-red-200">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 ring-1 ring-red-200"
+            >
               {error}
             </div>
           )}
