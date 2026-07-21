@@ -601,7 +601,7 @@ export function BookingForm() {
                 </div>
               </div>
               <p className="mb-2 text-xs text-stone-400">
-                Tanggal bertanda titik sudah ada booking, dan yang pudar berarti penuh/libur. Studio tutup setiap hari Jumat.
+                Pilih tanggal yang tersedia. Keterangan tanda bisa dilihat pada legenda di bawah kalender ya kak. 🙏
               </p>
               <BookingCalendar
                 value={form.bookingDate}
@@ -679,7 +679,7 @@ export function BookingForm() {
                   Detail Aksesoris Adat <span className="required-mark">*</span>
                 </label>
                 <p className="mb-2 text-xs text-stone-400">
-                  Silakan pilih detail aksesoris yang diinginkan. Admin akan mengonfirmasi ketersediaan stok setelah formulir ini dikirim ya kak. 🙏
+                  Pilih detail aksesoris adat yang kamu inginkan ya kak. 🙏
                 </p>
                 <div className="space-y-2">
                   {ADAT_DETAIL_OPTIONS.map((opt) => {
@@ -709,7 +709,7 @@ export function BookingForm() {
               </label>
               <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                 <span className="rounded-full bg-gold-50 px-2 py-0.5 font-medium text-gold-700 ring-1 ring-gold-200">Ukuran S–L</span>
-                <span className="text-stone-400">Di luar rentang ini, gunakan busana pribadi atau hubungi kami dahulu.</span>
+                <span className="text-stone-400">Di luar rentang ini, silakan gunakan busana pribadi atau hubungi kami terlebih dahulu.</span>
               </div>
               <div className="space-y-2">
                 {ATTIRE_OPTIONS.map((opt) => {
@@ -737,7 +737,7 @@ export function BookingForm() {
                 Apakah Membawa Pendamping? <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">
-                Agar sesi rias lebih nyaman dan kondusif, kami menyarankan untuk tidak membawa anak kecil ke studio ya kak. 🙏
+                Kamu boleh membawa pendamping. Namun agar sesi rias tetap nyaman dan kondusif, kami sarankan untuk tidak membawa anak kecil ke studio ya kak. 🙏
               </p>
               <YesNoToggle
                 value={form.pendamping}
@@ -754,7 +754,7 @@ export function BookingForm() {
                 Apakah Ingin Tambahan Fotografer? <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">
-                Biaya tambahan untuk Fotografer - Rp 25.000 / 25 foto. Fotografer hanya tersedia di hari Sabtu dan Minggu, sesuai jadwal dari fotografer tersebut. Pastikan konfirmasi ke Admin untuk jadwal Fotografer.
+                Biaya tambahan Rp 25.000 / 25 foto. Fotografer hanya tersedia hari Sabtu &amp; Minggu, dan jadwalnya perlu dikonfirmasi ke admin dulu ya kak. 🙏
               </p>
               <YesNoToggle
                 value={form.fotografer}
