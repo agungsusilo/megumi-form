@@ -784,7 +784,7 @@ export function BookingForm() {
                 Apakah Ingin Tambahan Fotografer? <span className="required-mark">*</span>
               </label>
               <p className="mb-2 text-xs text-stone-400">
-                Biaya tambahan Rp 25.000 / 25 foto. Fotografer hanya tersedia hari Sabtu &amp; Minggu, dan jadwalnya perlu dikonfirmasi ke admin dulu ya kak. 🙏
+                Biaya tambahan Rp 35.000 / 25 foto. Fotografer hanya tersedia hari Sabtu &amp; Minggu, dan jadwalnya perlu dikonfirmasi ke admin dulu ya kak. 🙏
               </p>
               <YesNoToggle
                 value={form.fotografer}
