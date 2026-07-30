@@ -623,9 +623,9 @@ export function BookingForm() {
                 <p className="mt-2 mb-1 font-semibold uppercase tracking-wide text-[10px] text-gold-600">Tarif Sewa Studio</p>
                 <div className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-stone-500">
                   <span>Per sesi (4 jam)</span>
-                  <span className="text-right font-medium text-stone-700">Rp 65.000</span>
+                  <span className="text-right font-medium text-stone-700">Rp 85.000</span>
                   <span>Full Day / 2 sesi (9 jam)</span>
-                  <span className="text-right font-medium text-stone-700">Rp 130.000</span>
+                  <span className="text-right font-medium text-stone-700">Rp 170.000</span>
                   <span>Tambahan durasi (maks 2 jam)</span>
                   <span className="text-right font-medium text-stone-700">Rp 20.000/jam</span>
                 </div>
@@ -802,7 +802,7 @@ export function BookingForm() {
             <p className="form-section-title"><span className="form-section-badge">4</span>Pembayaran <span className="required-mark">*</span></p>
 
             <p className="mb-3 text-xs text-stone-500">
-              Untuk mengamankan jadwal booking, mohon melakukan <strong className="font-semibold text-stone-700">DP sebesar Rp 35.000</strong> melalui QRIS di bawah atau ke rekening berikut:
+              Untuk mengamankan jadwal booking, mohon melakukan <strong className="font-semibold text-stone-700">DP sebesar Rp 40.000</strong> melalui QRIS di bawah atau ke rekening berikut:
             </p>
 
             <div className="mb-4 rounded-xl border border-gold-100 bg-gold-50/50 p-4 text-center">
